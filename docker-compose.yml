@@ -1,0 +1,152 @@
+version: "3"
+
+services:
+    caddy:
+        image: siwecos/caddy
+        restart: always
+        ports:
+            - 80:80
+            - 443:443
+        volumes:
+            - ./caddy/Caddyfile:/etc/Caddyfile:ro
+            - caddy_certs:/root/.caddy
+            - ./caddy/blockpage.html:/srv/blockpage.html:ro
+
+    siwecos-crawler:
+        image: siwecos/domain-validator:latest
+        restart: always
+
+    siwecos-business-layer:
+        image: siwecos/siwecos-business-layer:latest
+        restart: always
+        depends_on:
+            - mariadb
+            - redis
+        environment:
+            - APP_URL=http://siwecos-business-layer
+            - APP_DEBUG=false
+            - APP_ENV=production
+            - CORE_API_SCAN_START_URL=http://siwecos-core-api:80/api/v2/scan
+            - CRAWLER_START_URL=http://siwecos-crawler:8080/validate
+            - LOG_CHANNEL=stderr
+            - DB_HOST=mariadb
+            - DB_DATABASE=siwecos-bla
+            - DB_USERNAME=siwecos_user
+            - DB_PASSWORD=changeme
+            - FILESYSTEM_DRIVER=sftp
+            - SFTP_HOST=
+            - SFTP_USER=
+            - SFTP_PASS=
+            - SFTP_DIR=
+            - TECHNICAL_SUPPORT_MAIL=
+            - MAIL_DRIVER=smtp
+            - MAIL_HOST=mailhog
+            - MAIL_USERNAME=null
+            - MAIL_PASSWORD=null
+            - MAIL_PORT=1025
+            - MAIL_ENCRYPTION=null
+            - ELASTICSEARCH_HOST=elasticsearch
+            - ELASTICSEARCH_USER=
+            - ELASTICSEARCH_PASS=
+            - SCANNER_SCORE_WEIGHT_DOMXSS=0
+            - SCANNER_SCORE_WEIGHT_TLS=3
+
+    siwecos-core-api:
+        image: siwecos/siwecos-core-api:develop
+        ports:
+            - 8000:80
+        environment:
+            - APP_URL=http://siwecos-core-api
+            - INI_S_SCANNER_URL=http://ini-s-scanner:8080/api/v1/check
+            - DOMXSS_SCANNER_URL=http://hshs-domxss-scanner/api/v1/domxss
+            - HEADER_SCANNER_URL=http://hshs-domxss-scanner/api/v1/header
+            - INFOLEAK_SCANNER_URL=http://infoleak-scanner/api/v2/start
+            - PORT_SCANNER_URL=http://port-scanner:8080/start
+            - TLS_SCANNER_URL=http://tls-scanner:8080/tls
+            - VERSION_SCANNER_URL=http://version-scanner/api/v1/version
+            - POP3_TLS_SCANNER_URL=http://tls-scanner:8080/pop3
+            - POP3S_TLS_SCANNER_URL=http://tls-scanner:8080/pop3s
+            - IMAP_TLS_SCANNER_URL=http://tls-scanner:8080/imap
+            - IMAPS_TLS_SCANNER_URL=http://tls-scanner:8080/imaps
+            - SMTP_TLS_SCANNER_URL=http://tls-scanner:8080/smtp
+            - SMTPS_TLS_SCANNER_URL=http://tls-scanner:8080/smtps
+            - SMTP_MSA_TLS_SCANNER_URL=http://tls-scanner:8080/smtp_msa
+            # - USER_AGENT='Your Custom User-Agent Header'
+            # - APP_DEBUG=true
+            - LOG_CHANNEL=stderr
+
+    ini-s-scanner:
+        image: siwecos/ini-s-scanner:develop
+        ports:
+            - 8090:8080
+        volumes:
+            - blacklists:/storage
+
+    hshs-domxss-scanner:
+        image: siwecos/hshs-domxss-scanner:develop
+        ports:
+            - 8091:80
+
+    infoleak-scanner:
+        image: siwecos/infoleak-scanner:develop
+        ports:
+            - 8093:80
+
+    port-scanner:
+        image: siwecos/ws-port-scanner:develop
+        ports:
+            - 8094:8080
+
+    tls-scanner:
+        image: siwecos/ws-tls-scanner:develop
+        ports:
+            - 8095:8080
+
+    version-scanner:
+        image: siwecos/version-scanner:develop
+        ports:
+            - 8096:80
+        volumes:
+            - signatures:/var/www/html/storage/signatures
+
+    callback:
+        image: siwecos/callback-server:latest
+        ports:
+            - 3000:3000
+        volumes:
+            - ./data:/data
+
+    elasticsearch:
+        image: elasticsearch:6.5.4
+
+    mariadb:
+        image: mariadb:10.4
+        restart: always
+        ports:
+            - 127.0.0.1:3306:3306
+        volumes:
+            - db:/var/lib/mysql
+        environment:
+            - MYSQL_ROOT_PASSWORD=changeme
+            - MYSQL_DATABASE=siwecos-bla
+            - MYSQL_USER=siwecos_user
+            - MYSQL_PASSWORD=changeme
+    mailhog:
+        image: mailhog/mailhog:latest
+        ports:
+          - "8025:8025"
+
+    redis:
+        image: redis:5.0
+        restart: always
+
+    watchtower:
+        image: containrrr/watchtower
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+
+volumes:
+    db:
+    caddy_certs:
+    blacklists:
+    signatures:
